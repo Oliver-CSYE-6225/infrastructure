@@ -1,0 +1,6 @@
+vpc_cidr_block   = "10.0.0.0/16"
+aws_profile      = "prod"
+vpc_name         = "csye6225-vpc-fall2021"
+subnet_name_p1   = "csye6225-subnet-fall2021"
+igw_name         = "csye6225-internet-gateway-fall2021"
+route_table_name = "csye6225-route-table-fall2021"
