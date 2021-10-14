@@ -27,3 +27,8 @@ variable "route_table_name" {
   type        = string
   description = "ROUTE TABLE NAME"
 }
+
+variable "internet_cidr_block"{
+  type = string
+  description = "CIDR BLOCK FOR WORLD WIDE WEB"
+}
