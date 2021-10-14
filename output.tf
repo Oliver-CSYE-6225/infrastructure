@@ -1,20 +1,10 @@
 output "vpc_id" {
   value = aws_vpc.vpc.id
 }
-output "subnet_us-east-1a_id" {
-  value = aws_vpc.subnet["us-east-1a"].id
-}
-
-output "subnet_us-east-1b_id" {
-  value = aws_vpc.subnet["us-east-1b"].id
-}
-
-output "subnet_us-east-1c_id" {
-  value = aws_vpc.subnet["us-east-1c"].id
-}
-
-output "vpc_id" {
-  value = aws_vpc.vpc.id
+output "subnet_ids" {
+  value = {
+    for k, v in aws_subnet.subnet : k => v.id
+  }
 }
 
 output "aws_internet_gateway_id" {
