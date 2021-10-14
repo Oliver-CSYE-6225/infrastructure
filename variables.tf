@@ -32,3 +32,8 @@ variable "internet_cidr_block" {
   type        = string
   description = "CIDR BLOCK FOR WORLD WIDE WEB"
 }
+
+variable "subnet_cidr_az_map" {
+  type        = map(any)
+  description = "az name"
+}
