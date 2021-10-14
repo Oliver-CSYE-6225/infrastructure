@@ -35,5 +35,5 @@ variable "internet_cidr_block" {
 
 variable "subnet_cidr_az_map" {
   type        = map(any)
-  description = "az name"
+  description = "Mapping availability to zone to subnet cidrs"
 }
