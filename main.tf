@@ -3,6 +3,8 @@ resource "aws_vpc" "vpc" {
   tags = {
     Name = var.vpc_name
   }
+  enable_dns_support = true
+  enable_dns_hostnames = true
 }
 
 resource "aws_subnet" "subnet" {
