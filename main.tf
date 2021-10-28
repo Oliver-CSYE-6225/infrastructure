@@ -45,7 +45,7 @@ resource "aws_route_table" "route_table" {
 }
 
 resource "aws_route_table_association" "sub_ass" {
-  for_each = local.subnet_az_cider
+  for_each = local.subnet_association_cider
 
   subnet_id      = aws_subnet.subnet[each.key].id
   route_table_id = aws_route_table.route_table.id
@@ -169,7 +169,7 @@ resource "aws_db_parameter_group" "rds_pg" {
 
 resource "aws_db_subnet_group" "rds_subnet_group" {
   name       = "rds_subnet_group"
-  subnet_ids = [aws_subnet.subnet[var.rds_subnet_zone1].id, aws_subnet.subnet[var.rds_subnet_zone2].id]
+  subnet_ids = [aws_subnet.subnet[var.rds_subnet_zone3].id, aws_subnet.subnet[var.rds_subnet_zone4].id]
 
   tags = {
     Name = "AWS RDS subnet group"

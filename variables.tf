@@ -43,6 +43,11 @@ variable "subnet_cidr_az_map" {
   description = "Mapping availability to zone to subnet cidrs"
 }
 
+variable "subnet_cidr_association_map" {
+  type        = map(any)
+  description = "Mapping availability to zone to subnet cidrs"
+}
+
 variable "app_security_group_ports" {
   type        = list(number)
   description = "List of Application Security Group Ports"
@@ -54,6 +59,16 @@ variable "rds_subnet_zone1" {
 }
 
 variable "rds_subnet_zone2" {
+  type        = string
+  description = "Subnet zone 2 to deploy rds"
+}
+
+variable "rds_subnet_zone3" {
+  type        = string
+  description = "Subnet zone 2 to deploy rds"
+}
+
+variable "rds_subnet_zone4" {
   type        = string
   description = "Subnet zone 2 to deploy rds"
 }
