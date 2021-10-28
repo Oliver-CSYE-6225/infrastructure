@@ -15,3 +15,7 @@ output "aws_internet_gateway_id" {
 output "route_table_id" {
   value = aws_route_table.route_table.id
 }
+
+output "s3_domain_name" {
+  value = aws_s3_bucket.s3_bucket.bucket_domain_name
+}
