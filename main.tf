@@ -197,11 +197,19 @@ resource "aws_db_instance" "csye_rds" {
 //     device_index = 1
 //   }
 // }
+data "aws_ami" "csye_ami" {
+  most_recent      = true
+  owners           = [746774523931]
 
+  filter {
+    name   = "name"
+    values = ["csye6225-*"]
+  }
+}
 
 resource "aws_instance" "ec2_instance" {
   depends_on              = [aws_db_instance.csye_rds, aws_iam_instance_profile.s3_instance_profile]
-  ami                     = var.ami_id
+  ami                     = data.aws_ami.csye_ami.id
   subnet_id               = aws_subnet.subnet[var.rds_subnet_zone1].id
   instance_type           = var.ec2_instance_type
   disable_api_termination = false
@@ -229,6 +237,10 @@ EOF
   key_name             = var.ec2_key_name
   iam_instance_profile = aws_iam_instance_profile.s3_instance_profile.name
 
+    tags = {
+    Name = "csye-6225-1"
+    instance_identifier = "webapp_deploy"
+  }
 }
 
 resource "aws_iam_policy" "WebAppS3" {
@@ -256,6 +268,16 @@ resource "aws_iam_policy" "WebAppS3" {
   })
 }
 
+
+
+resource "aws_iam_instance_profile" "s3_instance_profile" {
+  depends_on = [aws_iam_role.s3_access]
+  name       = var.iam_instance_profile_name
+  role       = aws_iam_role.s3_access.name
+}
+
+
+
 resource "aws_iam_role" "s3_access" {
   depends_on          = [aws_iam_policy.WebAppS3]
   name                = var.iam_role_s3_name
@@ -273,10 +295,4 @@ resource "aws_iam_role" "s3_access" {
       },
     ]
   })
-}
-
-resource "aws_iam_instance_profile" "s3_instance_profile" {
-  depends_on = [aws_iam_role.s3_access]
-  name       = var.iam_instance_profile_name
-  role       = aws_iam_role.s3_access.name
 }
