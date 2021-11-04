@@ -199,7 +199,7 @@ resource "aws_db_instance" "csye_rds" {
 // }
 data "aws_ami" "csye_ami" {
   most_recent      = true
-  owners           = [746774523931]
+  owners           = [var.dev_acc_num]
 
   filter {
     name   = "name"
