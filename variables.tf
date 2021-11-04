@@ -209,3 +209,7 @@ variable "iam_role_s3_name" {
 variable "iam_instance_profile_name" {
   type = string
 }
+
+variable "dev_acc_num" {
+  type = number
+}
