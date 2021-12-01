@@ -119,14 +119,14 @@ resource "aws_security_group" "WebAppSecurityGroup" {
 
 //   }
 
-  ingress {
-    description      = var.app_security_group_description
-    from_port        = 22
-    to_port          = 22
-    protocol         = var.protocol_tcp
-    cidr_blocks      = [var.internet_cidr_block_ipv4]
-    ipv6_cidr_blocks = [var.internet_cidr_block_ipv6]
-  }
+  // ingress {
+  //   description      = var.app_security_group_description
+  //   from_port        = 22
+  //   to_port          = 22
+  //   protocol         = var.protocol_tcp
+  //   cidr_blocks      = [var.internet_cidr_block_ipv4]
+  //   ipv6_cidr_blocks = [var.internet_cidr_block_ipv6]
+  // }
 
   ingress {
     description      = var.app_security_group_description
@@ -248,14 +248,6 @@ resource "aws_s3_bucket" "s3_bucket" {
     }
   }
 
-  lifecycle_rule {
-    enabled = true
-    transition {
-      days          = var.s3_lifecycle_transition_days
-      storage_class = var.s3_lifecycle_storage_class
-    }
-  }
-}
 
 resource "aws_db_parameter_group" "rds_pg" {
   name   = var.db_pm_group_name
