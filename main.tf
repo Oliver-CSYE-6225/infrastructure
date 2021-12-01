@@ -119,14 +119,14 @@ resource "aws_security_group" "WebAppSecurityGroup" {
 
 //   }
 
-//   ingress {
-//     description      = var.app_security_group_description
-//     from_port        = 22
-//     to_port          = 22
-//     protocol         = var.protocol_tcp
-//     cidr_blocks      = [var.internet_cidr_block_ipv4]
-//     ipv6_cidr_blocks = [var.internet_cidr_block_ipv6]
-//   }
+  ingress {
+    description      = var.app_security_group_description
+    from_port        = 22
+    to_port          = 22
+    protocol         = var.protocol_tcp
+    cidr_blocks      = [var.internet_cidr_block_ipv4]
+    ipv6_cidr_blocks = [var.internet_cidr_block_ipv6]
+  }
 
   ingress {
     description      = var.app_security_group_description
@@ -265,7 +265,7 @@ resource "aws_db_parameter_group" "rds_pg" {
 
 resource "aws_db_subnet_group" "rds_subnet_group" {
   name       = var.db_subnet_group_name
-  subnet_ids = [aws_subnet.subnet[var.rds_subnet_zone3].id, aws_subnet.subnet[var.rds_subnet_zone4].id]
+  subnet_ids = [aws_subnet.subnet[var.rds_subnet_zone2].id, aws_subnet.subnet[var.rds_subnet_zone4].id]
 
   // tags = {
   //   Name = "AWS RDS subnet group"
@@ -282,12 +282,37 @@ resource "aws_db_instance" "csye_rds" {
   username               = var.database_username
   password               = var.database_password
   db_subnet_group_name   = aws_db_subnet_group.rds_subnet_group.id
+    availability_zone = "us-east-1c"
   identifier             = var.database_name
   publicly_accessible    = false
   allocated_storage      = var.db_allocated_storage
   skip_final_snapshot    = true
   vpc_security_group_ids = [aws_security_group.database.id]
   parameter_group_name   = var.db_pm_group_name
+  backup_retention_period = 5
+
+}
+
+resource "aws_db_instance" "csye_rds_read_replica" {
+  depends_on             = [aws_db_instance.csye_rds,aws_db_parameter_group.rds_pg, aws_db_subnet_group.rds_subnet_group]
+  engine                 = var.db_instance_engine
+  engine_version         = var.db_instance_engine_version
+  instance_class         = var.db_instance_class
+  multi_az               = false
+  // name                   = "csye6225"
+  // username               = var.database_username
+  // password               = var.database_password
+  // db_subnet_group_name   = aws_db_subnet_group.rds_subnet_group.id
+  availability_zone = "us-east-1d"
+  identifier             = "csye6225replica"
+  publicly_accessible    = false
+  // allocated_storage      = var.db_allocated_storage
+  skip_final_snapshot    = true
+  vpc_security_group_ids = [aws_security_group.database.id]
+  parameter_group_name   = var.db_pm_group_name
+  replicate_source_db = aws_db_instance.csye_rds.id
+  // backup_retention_period = 1
+
 
 }
 
@@ -348,8 +373,13 @@ data "aws_ami" "csye_ami" {
 //   }
 // }
 
+resource "aws_sns_topic" "verify-user" {
+  name = "verify-user"
+}
+
 resource "aws_launch_configuration" "asg_launch_config" {
   // name_prefix   = "terraform-lc-example-"
+  depends_on = [aws_security_group.WebAppSecurityGroup]
   image_id                    = data.aws_ami.csye_ami.id
   instance_type               = "t2.micro"
   key_name                    = var.ec2_key_name
@@ -362,9 +392,13 @@ resource "aws_launch_configuration" "asg_launch_config" {
 ####################################################
 echo "hello"
 echo "db_url=${var.db_host_str_p1}${aws_db_instance.csye_rds.address}:${var.db_port}/${var.database_name}" >> /etc/environment
+echo "db_url2=${var.db_host_str_p1}${aws_db_instance.csye_rds_read_replica.address}:${var.db_port}/${var.database_name}" >> /etc/environment
 echo "username=${var.database_username}" >> /etc/environment
 echo "password=${var.database_password}" >> /etc/environment
 echo "s3_bucket_name=${aws_s3_bucket.s3_bucket.id}" >> /etc/environment
+echo "sns_topic_arn=${aws_sns_topic.verify-user.arn}" >> /etc/environment
+echo "dynamo_endpoint=https://dynamodb.${var.aws_region}.amazonaws.com" >> /etc/environment
+
 EOF
   iam_instance_profile        = aws_iam_instance_profile.s3_instance_profile.name
   name                        = "asg_launch_config"
@@ -381,6 +415,7 @@ resource "aws_autoscaling_group" "webapp_autoscale_group" {
   default_cooldown     = 60
   launch_configuration = "asg_launch_config"
   vpc_zone_identifier  = [aws_subnet.subnet[var.rds_subnet_zone1].id]
+  //Change needed desired=3, min=3, max=5
   desired_capacity     = 3
   max_size             = 5
   min_size             = 3
@@ -559,6 +594,115 @@ resource "aws_iam_policy" "WebAppS3" {
   })
 }
 
+resource "aws_iam_policy" "SNS-Publish" {
+  name        = "SNS-Publish"
+  description = "SNS-Publish"
+
+  # Terraform's "jsonencode" function converts a
+  # Terraform expression result to valid JSON syntax.
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "SNS:Publish",
+        ],
+        Effect = "Allow"
+        Resource = aws_sns_topic.verify-user.arn
+      }
+    ]
+  })
+}
+
+
+resource "aws_dynamodb_table" "dynamodb-table" {
+    depends_on = [aws_iam_policy.WebAppDynamo]
+
+  name           = "Email-Tokens"
+  // billing_mode   = "PROVISIONED"
+  read_capacity  = 20
+  write_capacity = 20
+  hash_key       = "EmailId"
+  // range_key      = "GameTitle"
+
+  attribute {
+    name = "EmailId"
+    type = "S"
+  }
+
+  attribute {
+    name = "Token"
+    type = "S"
+  }
+
+  // attribute {
+  //   name = "TopScore"
+  //   type = "N"
+  // }
+
+  ttl {
+    attribute_name = "TimeToExist"
+    enabled        = true
+  }
+
+  global_secondary_index {
+    name               = "EmailTokenIndex"
+    hash_key           = "Token"
+    // range_key          = "Token"
+    write_capacity     = 10
+    read_capacity      = 10
+    projection_type    = "INCLUDE"
+    non_key_attributes = ["EmailId"]
+  }
+
+  tags = {
+    Name        = "dynamodb-table-1"
+    Environment = "production"
+  }
+}
+
+resource "aws_iam_policy" "WebAppDynamo" {
+  name        = "Web-App-Dynamo"
+  description = "Policy to provide ec2 access to Dynamo"
+
+  # Terraform's "jsonencode" function converts a
+  # Terraform expression result to valid JSON syntax.
+  policy = jsonencode({
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "ListAndDescribe",
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:List*",
+                "dynamodb:DescribeReservedCapacity*",
+                "dynamodb:DescribeLimits",
+                "dynamodb:DescribeTimeToLive"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "SpecificTable",
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:BatchGet*",
+                "dynamodb:DescribeStream",
+                "dynamodb:DescribeTable",
+                "dynamodb:Get*",
+                "dynamodb:Query",
+                "dynamodb:Scan",
+                "dynamodb:BatchWrite*",
+                "dynamodb:CreateTable",
+                "dynamodb:Delete*",
+                "dynamodb:Update*",
+                "dynamodb:PutItem"
+            ],
+            "Resource": "arn:aws:dynamodb:*:*:table/Email-Tokens"
+        }
+    ]
+})
+}
+
 
 
 resource "aws_iam_instance_profile" "s3_instance_profile" {
@@ -575,7 +719,7 @@ data "aws_iam_policy" "CloudWatchAgentServerPolicy" {
 resource "aws_iam_role" "s3_access" {
   depends_on          = [aws_iam_policy.WebAppS3]
   name                = var.iam_role_s3_name
-  managed_policy_arns = [aws_iam_policy.WebAppS3.arn, data.aws_iam_policy.CloudWatchAgentServerPolicy.arn]
+  managed_policy_arns = [aws_iam_policy.WebAppS3.arn, data.aws_iam_policy.CloudWatchAgentServerPolicy.arn, aws_iam_policy.WebAppDynamo.arn, aws_iam_policy.SNS-Publish.arn]
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
