@@ -73,6 +73,11 @@ variable "rds_subnet_zone4" {
   description = "Subnet zone 2 to deploy rds"
 }
 
+variable "rds_subnet_zone5" {
+  type        = string
+  description = "Subnet zone 3 to deploy rds"
+}
+
 variable "database_username" {
   type        = string
   description = "Database Url"
@@ -208,4 +213,8 @@ variable "iam_instance_profile_name" {
 
 variable "dev_acc_num" {
   type = number
+}
+
+variable "aws_region" {
+  type = string
 }
