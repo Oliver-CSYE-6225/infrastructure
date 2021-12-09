@@ -103,6 +103,11 @@ variable "db_host_str_p1" {
   description = "Database host string part 1"
 }
 
+variable "db_host_str_p2"{
+  type = string
+  description = "Database host string last part"
+}
+
 variable "app_security_group_description" {
   type = string
 }

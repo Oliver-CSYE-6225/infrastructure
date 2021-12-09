@@ -18,4 +18,8 @@ Steps to start managing Infra:
 <h3>Do not commit terraform.tfstate file <h3>
 <h3>Do not commit *.tfvars file <h3>
 
+<h4>Command to Import SSL Certificate: aws acm import-certificate --certificate fileb://prod_cert.pem \
+      --certificate-chain fileb://prod_oliverrodrigues_me.ca-bundle \
+      --private-key fileb://private.key --profile prod</h4>
+
 
