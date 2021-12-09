@@ -119,14 +119,14 @@ resource "aws_security_group" "WebAppSecurityGroup" {
 
 //   }
 
-  // ingress {
-  //   description      = var.app_security_group_description
-  //   from_port        = 22
-  //   to_port          = 22
-  //   protocol         = var.protocol_tcp
-  //   cidr_blocks      = [var.internet_cidr_block_ipv4]
-  //   ipv6_cidr_blocks = [var.internet_cidr_block_ipv6]
-  // }
+  ingress {
+    description      = var.app_security_group_description
+    from_port        = 22
+    to_port          = 22
+    protocol         = var.protocol_tcp
+    cidr_blocks      = [var.internet_cidr_block_ipv4]
+    ipv6_cidr_blocks = [var.internet_cidr_block_ipv6]
+  }
 
   ingress {
     description      = var.app_security_group_description
@@ -247,6 +247,7 @@ resource "aws_s3_bucket" "s3_bucket" {
       }
     }
   }
+}
 
 
 resource "aws_db_parameter_group" "rds_pg" {
@@ -262,6 +263,11 @@ resource "aws_db_subnet_group" "rds_subnet_group" {
   // tags = {
   //   Name = "AWS RDS subnet group"
   // }
+}
+
+resource "aws_kms_key" "kms_key_rds" {
+  description             = "Customer managed key for RDS"
+  deletion_window_in_days = 10
 }
 
 resource "aws_db_instance" "csye_rds" {
@@ -282,6 +288,8 @@ resource "aws_db_instance" "csye_rds" {
   vpc_security_group_ids = [aws_security_group.database.id]
   parameter_group_name   = var.db_pm_group_name
   backup_retention_period = 5
+  storage_encrypted = true
+  kms_key_id = aws_kms_key.kms_key_rds.arn
 
 }
 
@@ -303,6 +311,8 @@ resource "aws_db_instance" "csye_rds_read_replica" {
   vpc_security_group_ids = [aws_security_group.database.id]
   parameter_group_name   = var.db_pm_group_name
   replicate_source_db = aws_db_instance.csye_rds.id
+  storage_encrypted = true
+  kms_key_id = aws_kms_key.kms_key_rds.arn
   // backup_retention_period = 1
 
 
@@ -369,8 +379,224 @@ resource "aws_sns_topic" "verify-user" {
   name = "verify-user"
 }
 
+// resource "aws_iam_role" "autoscale_role" {
+//   name = "iam-role-for-grant"
+
+//   assume_role_policy = <<EOF
+// {
+//   "Version": "2012-10-17",
+//   "Statement": [
+//     {
+//       "Action": "sts:AssumeRole",
+//       "Principal": {
+//         "Service": "autoscaling.amazonaws.com"
+//       },
+//       "Effect": "Allow",
+//       "Sid": ""
+//     }
+//   ]
+// }
+// EOF
+// }
+
+
+//EBS key
+data "aws_iam_policy_document" "ebs_key_policy" {
+  statement {
+    sid = "1"
+    effect = "Allow"
+    actions = [
+        "kms:Encrypt",
+       "kms:Decrypt",
+       "kms:ReEncrypt*",
+       "kms:GenerateDataKey*",
+       "kms:DescribeKey"
+    ]
+
+    principals {
+      type        = "AWS"
+      identifiers = [
+        "arn:aws:iam::546679085257:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling",
+        "arn:aws:iam::546679085257:user/prod_admin"
+      ]
+    }
+
+    resources = [
+      "*",
+    ]
+  }
+
+  statement {
+    sid = "2"
+    effect = "Allow"
+    actions = [
+                "kms:Create*",
+                      "kms:Describe*",
+                      "kms:Enable*",
+                      "kms:List*",
+                      "kms:Put*",
+                      "kms:Update*",
+                      "kms:Revoke*",
+                      "kms:Disable*",
+                      "kms:Get*",
+                      "kms:Delete*",
+                      "kms:ScheduleKeyDeletion",
+                      "kms:CancelKeyDeletion"    ]
+
+    principals {
+      type        = "AWS"
+      identifiers = [
+        "arn:aws:iam::546679085257:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling",
+        "arn:aws:iam::546679085257:user/prod_admin",
+        "arn:aws:iam::546679085257:root"
+      ]
+    }
+
+    resources = [
+      "*",
+    ]
+    // condition {
+    //   test     = "bool"
+    //   variable = "s3:prefix"
+
+    //   values = [
+    //     "",
+    //     "home/",
+    //     "home/&{aws:username}/",
+    //   ]
+    // }
+  }
+}
+
+// resource "aws_iam_policy" "encrypt-ec2-policy" {
+//   name   = "encrypt-ec2-policy"
+//   path   = "/"
+//   policy = data.aws_iam_policy_document.ebs_key_policy.json
+// }
+
+resource "aws_kms_key" "kms_key_ebs" {
+  description             = "Customer managed key for EBS Volume"
+  deletion_window_in_days = 10
+  policy = data.aws_iam_policy_document.ebs_key_policy.json
+  
+  // jsonencode({
+  //         "Version": "2012-10-17",
+  //         "Id": "key-default-1",
+  //         "Statement": [
+  //             {
+  //                 "Sid": "Allow administration of the key",
+  //                 "Effect": "Allow",
+  //                 "Principal": { "AWS": "arn:aws:iam::546679085257:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling" },
+  //                 "Action": [
+  //                     "kms:Create*",
+  //                     "kms:Describe*",
+  //                     "kms:Enable*",
+  //                     "kms:List*",
+  //                     "kms:Put*",
+  //                     "kms:Update*",
+  //                     "kms:Revoke*",
+  //                     "kms:Disable*",
+  //                     "kms:Get*",
+  //                     "kms:Delete*",
+  //                     "kms:ScheduleKeyDeletion",
+  //                     "kms:CancelKeyDeletion"
+  //                 ],
+  //                 "Resource": "*"
+  //             },
+  //             {
+  //                 "Sid": "Allow use of the key",
+  //                 "Effect": "Allow",
+  //                 "Principal": { "AWS": "arn:aws:iam::546679085257:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling" },
+  //                 "Action": [
+  //                     "kms:Encrypt",
+  //                     "kms:Decrypt",
+  //                     "kms:ReEncrypt",
+  //                     "kms:GenerateDataKey*",
+  //                     "kms:DescribeKey"
+  //                 ], 
+  //                 "Resource": "*"
+  //             }
+  //         ]
+  //     })
+}
+
+resource "aws_ebs_default_kms_key" "default_ebs_key" {
+  key_arn = aws_kms_key.kms_key_ebs.arn
+}
+
+
+
+// resource "aws_kms_grant" "autoscale_role_grant" {
+//   name              = "my-grant"
+//   key_id            = aws_kms_key.kms_key_ebs.key_id
+//   grantee_principal = aws_iam_role.autoscale_role.arn
+//   operations        = ["Encrypt", "Decrypt", "GenerateDataKey"]
+
+//   // constraints {
+//   //   encryption_context_equals = {
+//   //     Department = "Finance"
+//   //   }
+//   // }
+// }
+
+
+
+
+// data "aws_iam_policy_document" "kms_use1" {
+//   statement {
+//     sid = "Allow KMS Use"
+//     effect = "Allow"
+//     actions = [
+//       "kms:Encrypt",
+//       "kms:Decrypt",
+//       "kms:ReEncrypt*",
+//       "kms:GenerateDataKey*",
+//       "kms:DescribeKey",
+//     ]
+//     resources = ["*"]
+//   }
+// }
+
+// resource "aws_iam_policy" "kms_use1_policy" {
+//   name        = "kmsuse1"
+//   description = "Policy to allow use of KMS Key"
+//   policy      = data.aws_iam_policy_document.kms_use1.json
+// }
+
+// resource "aws_iam_role_policy_attachment" "kms1" {
+//   role       = aws_iam_service_linked_role.autoscaling.name
+//   policy_arn = aws_iam_policy.kms_use1_policy.arn
+// }
+
+// data "aws_iam_policy_document" "kms_use2" {
+//   statement {
+//     sid = "Allow KMS Use"
+//     effect = "Allow"
+//     actions = [
+//             "kms:CreateGrant"
+//     ]
+//     resources = ["*"]
+//   }
+// }
+
+// resource "aws_iam_policy" "kms_use2_policy" {
+//   name        = "kmsuse2"
+//   description = "Policy to allow use of KMS Key 2"
+//   policy      = data.aws_iam_policy_document.kms_use2.json
+// }
+
+// resource "aws_iam_role_policy_attachment" "kms2" {
+//   role       = aws_iam_service_linked_role.autoscaling.name
+//   policy_arn = aws_iam_policy.kms_use2_policy.arn
+// }
+
+// resource "aws_ebs_encryption_by_default" "example" {
+//   enabled = true
+// }
+
+
 resource "aws_launch_configuration" "asg_launch_config" {
-  // name_prefix   = "terraform-lc-example-"
+  name_prefix   = "asg_launch_config"
   depends_on = [aws_security_group.WebAppSecurityGroup]
   image_id                    = data.aws_ami.csye_ami.id
   instance_type               = "t2.micro"
@@ -383,8 +609,8 @@ resource "aws_launch_configuration" "asg_launch_config" {
 # TOMCAT SHOULD BE INSTALLED WHEN BUILDING THE AMI #
 ####################################################
 echo "hello"
-echo "db_url=${var.db_host_str_p1}${aws_db_instance.csye_rds.address}:${var.db_port}/${var.database_name}" >> /etc/environment
-echo "db_url2=${var.db_host_str_p1}${aws_db_instance.csye_rds_read_replica.address}:${var.db_port}/${var.database_name}" >> /etc/environment
+echo "db_url=${var.db_host_str_p1}${aws_db_instance.csye_rds.address}:${var.db_port}/${var.database_name}${var.db_host_str_p2}" >> /etc/environment
+echo "db_url2=${var.db_host_str_p1}${aws_db_instance.csye_rds_read_replica.address}:${var.db_port}/${var.database_name}${var.db_host_str_p2}" >> /etc/environment
 echo "username=${var.database_username}" >> /etc/environment
 echo "password=${var.database_password}" >> /etc/environment
 echo "s3_bucket_name=${aws_s3_bucket.s3_bucket.id}" >> /etc/environment
@@ -393,19 +619,22 @@ echo "dynamo_endpoint=https://dynamodb.${var.aws_region}.amazonaws.com" >> /etc/
 
 EOF
   iam_instance_profile        = aws_iam_instance_profile.s3_instance_profile.name
-  name                        = "asg_launch_config"
+  // name                        = "asg_launch_config"
   security_groups             = [aws_security_group.WebAppSecurityGroup.id]
-  // lifecycle {
-  //   create_before_destroy = true
-  // }
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  root_block_device {
+    encrypted = true
+  }
 }
 
 resource "aws_autoscaling_group" "webapp_autoscale_group" {
   // availability_zones = ["us-east-1a"]
-  depends_on = [aws_launch_configuration.asg_launch_config]
   name                 = "webapp_autoscale_group"
   default_cooldown     = 60
-  launch_configuration = "asg_launch_config"
+  launch_configuration = aws_launch_configuration.asg_launch_config.name
   vpc_zone_identifier  = [aws_subnet.subnet[var.rds_subnet_zone1].id]
   //Change needed desired=3, min=3, max=5
   desired_capacity     = 3
@@ -550,11 +779,11 @@ resource "aws_lb" "webapp_load_balancer" {
 
 resource "aws_lb_listener" "webapp-load-balancer-listener" {
   load_balancer_arn = aws_lb.webapp_load_balancer.arn
-  port              = "80"
-  protocol          = "HTTP"
-  // ssl_policy        = "ELBSecurityPolicy-2016-08"
+  port              = "443"
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
   // certificate_arn   = "arn:aws:iam::187416307283:server-certificate/test_cert_rab3wuqwgja25ct3n4jdj2tzu4"
-
+  certificate_arn = "arn:aws:acm:us-east-1:546679085257:certificate/a84c8fa9-5c62-458f-bfda-cc4c18338e98"
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.ec2-target-group.arn
