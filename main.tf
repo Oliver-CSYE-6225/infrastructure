@@ -253,6 +253,10 @@ resource "aws_s3_bucket" "s3_bucket" {
 resource "aws_db_parameter_group" "rds_pg" {
   name   = var.db_pm_group_name
   family = var.db_pm_group_family
+  parameter {
+    name  = "rds.force_ssl"
+    value = 1
+  }
 }
 
 
@@ -269,6 +273,11 @@ resource "aws_kms_key" "kms_key_rds" {
   description             = "Customer managed key for RDS"
   deletion_window_in_days = 10
 }
+
+// resource "aws_kms_key" "kms_key_rds_replica" {
+//   description             = "Customer managed key for RDS"
+//   deletion_window_in_days = 10
+// }
 
 resource "aws_db_instance" "csye_rds" {
   depends_on             = [aws_db_parameter_group.rds_pg, aws_db_subnet_group.rds_subnet_group]
